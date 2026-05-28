@@ -145,18 +145,23 @@ async def upload_file(file: UploadFile = File(...)):
         
     async def progress_generator():
         try:
+            print(f"\n[색인 시작] 문서 ID: {doc_id} | 파일명: {file.filename}")
+            print(f"  [1/5] PDF 저장 완료. 임시 경로: {temp_path}")
             yield f"data: {json.dumps({'progress': 10, 'message': 'PDF 파일을 서버에 저장하고 파싱을 준비하는 중...'})}\n\n"
             await asyncio.sleep(0.5)
             
             # Extract text using PyMuPDF to show first progress
+            print("  [2/5] PyMuPDF 기반 텍스트 추출 가동...")
             yield f"data: {json.dumps({'progress': 25, 'message': 'PyMuPDF를 사용하여 PDF 페이지 및 텍스트 데이터 로드 중...'})}\n\n"
             doc_pdf = pymupdf.open(temp_path)
             page_count = len(doc_pdf)
             pages = []
             for i, page in enumerate(doc_pdf, 1):
                 pages.append({'page': i, 'content': page.get_text() or ''})
+            print(f"  [2/5] 완료: 총 {page_count}페이지 텍스트 추출 성공")
             await asyncio.sleep(0.5)
             
+            print(f"  [3/5] PageIndex 계층형 트리 및 요약 구조 구축 시작 (Gemini 모델: {client.model})...")
             yield f"data: {json.dumps({'progress': 40, 'message': f'총 {page_count}페이지의 PageIndex 계층형 트리 및 요약 구성 시작... (LLM 작동 중)'})}\n\n"
             
             # Index PDF structure in thread pool
@@ -169,12 +174,16 @@ async def upload_file(file: UploadFile = File(...)):
                 if_add_node_id='yes',
                 if_add_doc_description='yes'
             )
+            print("  [3/5] 완료: PageIndex 트리 빌드 성공")
             
+            print("  [4/5] 역색인(Inverted Index) 키워드 맵 생성 중...")
             yield f"data: {json.dumps({'progress': 85, 'message': '텍스트 형태소 및 키워드 풀텍스트 검색 색인(Inverted Index) 생성 중...'})}\n\n"
             # Build inverted index
             await asyncio.to_thread(build_keyword_index, temp_path, doc_id)
+            print("  [4/5] 완료: 역색인 파일 생성 완료")
             
             # Save client structure & meta
+            print("  [5/5] 색인 데이터 워크스페이스 저장 및 메타데이터 기록 중...")
             client.documents[doc_id] = {
                 'id': doc_id,
                 'type': 'pdf',
@@ -186,6 +195,7 @@ async def upload_file(file: UploadFile = File(...)):
                 'pages': pages,
             }
             client._save_doc(doc_id)
+            print(f"[색인 성공] 문서 ID: {doc_id} 등록 완료!\n")
             
             yield f"data: {json.dumps({'progress': 100, 'message': '색인 처리가 완료되었습니다!', 'doc_id': doc_id})}\n\n"
         except Exception as e:
@@ -317,11 +327,15 @@ async def chat(request: ChatRequest):
     user_question = request.messages[-1]["content"]
     agent_messages.append({"role": "user", "content": user_question})
     
+    print(f"\n[질의응답 시작] 질문: '{user_question}'")
+    print(f"  대상 문서 목록:\n  " + "\n  ".join(doc_list_info))
+    
     steps = []
     max_turns = 4
     
     for turn in range(max_turns):
         try:
+            print(f"  [에이전트 추론 루프] {turn + 1}/{max_turns} 단계 실행...")
             # Call LLM via LiteLLM
             response = litellm.completion(
                 model=client.model,
@@ -340,7 +354,10 @@ async def chat(request: ChatRequest):
             arguments = action.get("arguments", {})
             answer = action.get("answer")
             
+            print(f"    ├─ 생각(Thought): {thought}")
+            
             if tool:
+                print(f"    ├─ 도구 호출: {tool}({json.dumps(arguments, ensure_ascii=False)})")
                 # Execute tool
                 result_str = ""
                 if tool == "get_document_structure":
@@ -357,6 +374,8 @@ async def chat(request: ChatRequest):
                 else:
                     result_str = f"알 수 없는 도구: {tool}"
                     
+                print(f"    └─ 도구 실행 결과 (일부): {result_str[:150]}...")
+                
                 # Record step
                 steps.append({
                     "thought": thought,
@@ -370,6 +389,8 @@ async def chat(request: ChatRequest):
                 agent_messages.append({"role": "user", "content": f"도구 실행 결과: {result_str}"})
             else:
                 # We have the final answer
+                print(f"    └─ 최종 답변 생성 완료")
+                print(f"[질의응답 성공] 답변 도출 완료!\n")
                 steps.append({
                     "thought": thought,
                     "answer": answer
