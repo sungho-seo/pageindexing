@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PageIndex RAG - 지능형 질의응답 서비스</title>
+    <!-- Modern Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar: Document selection -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fa-solid fa-cube logo-icon"></i>
+                    <span>PageIndex RAG</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3 class="section-title"><i class="fa-solid fa-folder-open"></i> 대상 문서 선택</h3>
+                <div class="all-docs-selector">
+                    <label class="custom-checkbox-container">
+                        <input type="checkbox" id="select-all-docs" checked>
+                        <span class="checkmark"></span>
+                        <span class="label-text">전체 문서 대상으로 검색</span>
+                    </label>
+                </div>
+                <div class="document-list-checkboxes" id="doc-checkbox-list">
+                    <!-- Dynamic Document Checkbox List -->
+                    <div class="no-docs-message">업로드된 문서가 없습니다.</div>
+                </div>
+            </div>
+            
+            <div class="sidebar-section keyword-search-section">
+                <h3 class="section-title"><i class="fa-solid fa-magnifying-glass"></i> 실시간 키워드 검색</h3>
+                <div class="search-input-group">
+                    <input type="text" id="keyword-search-input" placeholder="키워드 검색어 입력...">
+                    <button id="keyword-search-btn" title="검색"><i class="fa-solid fa-search"></i></button>
+                </div>
+                <div class="keyword-search-results" id="search-results-list">
+                    <!-- Dynamic Search Results -->
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="api-status">
+                    <span class="status-dot online"></span>
+                    <span>Gemini Flash Lite Ready</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="main-header">
+                <div class="tabs">
+                    <button class="tab-btn active" id="tab-chat" onclick="switchTab('chat')">
+                        <i class="fa-solid fa-comments"></i> 질의 응답 (Chat)
+                    </button>
+                    <button class="tab-btn" id="tab-docs" onclick="switchTab('docs')">
+                        <i class="fa-solid fa-file-pdf"></i> 문서 관리 (Files)
+                    </button>
+                </div>
+                <div class="header-actions">
+                    <div class="model-badge">
+                        <i class="fa-solid fa-bolt"></i> gemini-flash-lite-latest
+                    </div>
+                </div>
+            </header>
+
+            <!-- Tab 1: Chat interface -->
+            <section class="tab-panel active" id="panel-chat">
+                <div class="chat-container">
+                    <div class="chat-history" id="chat-history-container">
+                        <!-- Welcome message -->
+                        <div class="welcome-screen" id="welcome-message">
+                            <i class="fa-solid fa-brain welcome-icon"></i>
+                            <h1>PageIndex 기반 RAG 질의응답</h1>
+                            <p>기존 벡터 기반 RAG가 아닌, 문서의 목차 및 구조를 계층적 트리 형태로 인덱싱하여 모델이 스스로 답변 위치를 추론하는 지능형 RAG 서비스입니다.</p>
+                            <div class="features-grid">
+                                <div class="feature-card">
+                                    <i class="fa-solid fa-network-wired"></i>
+                                    <h3>계층형 트리 분석</h3>
+                                    <p>문서 구조를 손상시키지 않고 논리적 흐름에 따라 질문 위치를 추론합니다.</p>
+                                </div>
+                                <div class="feature-card">
+                                    <i class="fa-solid fa-magnifying-glass-chart"></i>
+                                    <h3>풀텍스트 키워드 검색</h3>
+                                    <p>자체 빌드한 역색인(Inverted Index)을 통해 빠른 구문 분석을 결합합니다.</p>
+                                </div>
+                                <div class="feature-card">
+                                    <i class="fa-solid fa-route"></i>
+                                    <h3>에이전트 생각 과정</h3>
+                                    <p>답변 도출을 위해 에이전트가 수행한 추론과 도구 호출 단계를 직접 확인할 수 있습니다.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-input-area">
+                        <div class="chat-input-wrapper">
+                            <textarea id="chat-textarea" placeholder="질문 내용을 입력하세요... (Enter 키로 전송, Shift+Enter로 줄바꿈)" rows="1"></textarea>
+                            <button id="send-chat-btn" title="전송">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 2: Document management -->
+            <section class="tab-panel" id="panel-docs">
+                <div class="docs-management-container">
+                    <h2 class="panel-heading"><i class="fa-solid fa-cloud-arrow-up"></i> PDF 문서 업로드</h2>
+                    
+                    <!-- Drag and Drop upload area -->
+                    <div class="drag-drop-zone" id="drop-zone">
+                        <i class="fa-solid fa-file-pdf upload-cloud-icon"></i>
+                        <h3>PDF 파일을 여기에 드래그 앤 드롭 하거나 클릭하세요</h3>
+                        <p>자동으로 PageIndex 및 풀텍스트 키워드 인덱싱 처리가 시작됩니다.</p>
+                        <input type="file" id="file-input" accept="application/pdf" style="display: none;">
+                    </div>
+
+                    <!-- Progress bar for indexing -->
+                    <div class="upload-progress-container" id="progress-container" style="display: none;">
+                        <div class="progress-header">
+                            <span class="progress-title" id="progress-status-text">인덱싱 처리 중...</span>
+                            <span class="progress-percent" id="progress-percent-text">10%</span>
+                        </div>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar-fill" id="progress-bar-fill-el" style="width: 10%"></div>
+                        </div>
+                        <p class="progress-detail" id="progress-detail-text">PDF 파일의 페이지를 추출하고 있습니다.</p>
+                    </div>
+
+                    <h2 class="panel-heading"><i class="fa-solid fa-list-check"></i> 등록된 문서 목록</h2>
+                    
+                    <!-- Documents list table -->
+                    <div class="docs-table-wrapper">
+                        <table class="docs-table">
+                            <thead>
+                                <tr>
+                                    <th>파일명</th>
+                                    <th>문서 개요</th>
+                                    <th>페이지 수</th>
+                                    <th>작업</th>
+                                </tr>
+                            </thead>
+                            <tbody id="documents-table-body">
+                                <!-- Dynamic Document Row List -->
+                                <tr>
+                                    <td colspan="4" class="empty-table-message">등록된 문서가 없습니다. 새로운 문서를 업로드해 주세요.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Script -->
+    <script src="index.js"></script>
+</body>
+</html>
